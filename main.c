@@ -153,7 +153,7 @@ int main(void)
                            XDefaultDepth(xw.dpy, xw.screen), InputOutput,
                            xw.vis, CWEventMask | CWColormap, &xw.swa);
 
-    XStoreName(xw.dpy, xw.win, "X11");
+    XStoreName(xw.dpy, xw.win, "File Watcher");
     XMapWindow(xw.dpy, xw.win);
     xw.wm_delete_window = XInternAtom(xw.dpy, "WM_DELETE_WINDOW", False);
     XSetWMProtocols(xw.dpy, xw.win, &xw.wm_delete_window, 1);
