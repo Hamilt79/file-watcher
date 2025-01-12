@@ -577,8 +577,9 @@ nk_xfont_create(Display *dpy, const char *name)
     XFont *font = (XFont*)calloc(1, sizeof(XFont));
     font->set = XCreateFontSet(dpy, name, &missing, &n, &def);
     if(missing) {
-        while(n--)
+        while(n--) {
             fprintf(stderr, "missing fontset: %s\n", missing[n]);
+        }
         XFreeStringList(missing);
     }
     if(font->set) {

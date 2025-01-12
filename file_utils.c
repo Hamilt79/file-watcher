@@ -4,9 +4,14 @@
 #include "file_utils.h"
 #include "stdlib.h"
 
+bool DoesFileExist(char *fileName)
+{
+    return (access(fileName, R_OK) == 0);
+}
+
 unsigned long GetLinesFromFile(char *fileName, char ***lines_Out, char **fileText_Out)
 {
-    if (access(fileName, R_OK) != 0)
+    if (!DoesFileExist(fileName))
     {
         goto emptyReturn;
     }

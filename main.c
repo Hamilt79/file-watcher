@@ -60,7 +60,7 @@ static Instance NewInstance()
 static void CleanFilePath(Instance *instance)
 {
     unsigned long size = strlen(instance->filePath);
-    instance->filePath = realloc(instance->filePath, sizeof(char) * size);
+    instance->filePath = realloc(instance->filePath, sizeof(char) * size + 1);
     if (size > 0ul)
     {
         instance->filePath[size - 1] = '\0';
@@ -98,27 +98,20 @@ static void sleep_for(long t)
 
 static char *get_command_out(const char *command, const unsigned size)
 {
-    char *path = (char *)malloc(sizeof(char) * size);
+    char *path = malloc(sizeof(char) * size);
+    memset(path, '\0', size);
     FILE *fp;
-    unsigned i;
-    char pathTemp[size];
-
-    for (i = 0; i < size; i++)
-    {
-        path[i] = '\0';
-    }
     fp = popen(command, "r");
     if (fp == NULL)
     {
         return path;
     }
-    if (fgets(pathTemp, size, fp) == NULL)
+    if (fgets(path, size - 1, fp) == NULL)
     {
         pclose(fp);
         return path;
     }
     pclose(fp);
-    strcpy(path, pathTemp);
     return path;
 }
 
@@ -162,13 +155,37 @@ int main(void)
     xw.height = (unsigned int)xw.attr.height;
 
     /* GUI */
+    setlocale(LC_ALL, "");
     xw.font = nk_xfont_create(xw.dpy, "fixed");
     ctx = nk_xlib_init(xw.font, xw.dpy, xw.screen, xw.win, xw.width, xw.height);
     enum nk_collapse_states optionsState = NK_MAXIMIZED;
     const float optionsHeightClosed = 25;
-    const float optionsHeightOpen = 90;
+    const float optionsHeightOpen = 115;
     float optionsHeight = optionsHeightOpen;
     nk_bool autoScroll = false;
+    nk_bool lineNumbers = true;
+    nk_bool wrap = false;
+    // struct nk_font_atlas *atlas;
+    // struct nk_font_config config = nk_font_config(14);
+
+    // config.oversample_h = 1;
+    // config.oversample_v = 1;
+    // config.range = nk_font_cyrillic_glyph_ranges();
+
+    // nk_sdl_font_stash_begin(&atlas);
+    //  struct nk_font *ubuntu = nk_font_atlas_add_from_file(atlas, "path_to_your_font", 14, &config)
+    //  nk_sdl_font_stash_end();
+    //  nk_style_set_font(ctx, &ubuntu->handle);
+    //  struct nk_font_atlas *atlas;
+    //  struct nk_font_config cfg = nk_font_config(0);
+    //  struct nk_font *font;
+    //  cfg.range = nk_font_cyrillic_glyph_ranges();
+    //  /* assign Glyph ranges, disable oversampling, enable pixel snapping */
+    //  cfg.oversample_h = cfg.oversample_v = 1;
+    //  cfg.pixel_snap = true;
+    //  font = nk_font_atlas_add_from_file(NULL, "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf", 10.0f, &cfg);
+    //  nk_style_set_font(ctx, &font->handle);
+
     while (running)
     {
         XGetWindowAttributes(xw.dpy, xw.win, &xw.attr);
@@ -187,7 +204,6 @@ int main(void)
         }
 
         nk_input_end(ctx);
-
         if (nk_begin(ctx, "Main", nk_rect(0, 0, xw.width, xw.height), 0))
         {
             nk_layout_row_dynamic(ctx, optionsHeight, 1);
@@ -204,17 +220,27 @@ int main(void)
                         static const unsigned SIZE = 1000;
                         char *path = get_command_out("zenity --file-selection 2>> /dev/null", SIZE);
                         instance.filePath = path;
-                        CleanFilePath(&instance);
-                        printf("%s\n", instance.filePath);
-                        instance.splitCount = GetLinesFromFile(instance.filePath, &(instance.lines), &(instance.fileText));
-                        printf("%d\n", instance.splitCount);
-                        optionsState = NK_MINIMIZED;
+                        if (instance.filePath != NULL)
+                        {
+                            CleanFilePath(&instance);
+                            if (DoesFileExist(instance.filePath))
+                            {
+                                printf("%s\n", instance.filePath);
+                                instance.splitCount = GetLinesFromFile(instance.filePath, &(instance.lines), &(instance.fileText));
+                                printf("%d\n", instance.splitCount);
+                                optionsState = NK_MINIMIZED;
+                            }
+                        }
                     }
-                    if (nk_checkbox_label(ctx, "Auto-Scroll", &autoScroll)) {
-                    }
+                    nk_layout_row_static(ctx, 15, 80, 1);
+                    nk_checkbox_label(ctx, "Auto-Scroll", &autoScroll);
+                    nk_checkbox_label(ctx, "Wrap", &wrap);
+                    nk_checkbox_label(ctx, "Line Numbers", &lineNumbers);
                     optionsHeight = optionsHeightOpen;
                     nk_tree_pop(ctx);
-                } else {
+                }
+                else
+                {
                     optionsHeight = optionsHeightClosed;
                 }
                 nk_group_end(ctx);
@@ -227,13 +253,105 @@ int main(void)
                     FreeLines(&(instance.lines), &(instance.fileText));
                     instance.splitCount = GetLinesFromFile(instance.filePath, &(instance.lines), &(instance.fileText));
                 }
-                nk_layout_row_dynamic(ctx, 10.0, 1);
-                for (linesIndex = 0; linesIndex < instance.splitCount; linesIndex++)
+                char lineNum[sizeof(long) + 3];
+                if (!wrap)
                 {
-                    nk_text(ctx, instance.lines[linesIndex], strlen(instance.lines[linesIndex]), NK_TEXT_ALIGN_LEFT);
+                    int width = 0;
+                    for (linesIndex = 0; linesIndex < instance.splitCount; linesIndex++)
+                    {
+                        int len;
+                        if (lineNumbers)
+                        {
+                            nk_itoa(lineNum, (long)linesIndex);
+                            strcat(lineNum, ": ");
+                            len = (strlen(lineNum) + strlen(instance.lines[linesIndex])) * 7;
+                        }
+                        else
+                        {
+                            len = strlen(instance.lines[linesIndex]) * 7;
+                        }
+                        if (len > width)
+                        {
+                            width = len;
+                        }
+                    }
+                    nk_layout_row_static(ctx, 10.0, width * .9, 1);
+                    for (linesIndex = 0; linesIndex < instance.splitCount; linesIndex++)
+                    {
+                        if (lineNumbers)
+                        {
+                            nk_itoa(lineNum, (long)linesIndex);
+                            strcat(lineNum, ": ");
+                            char line[strlen(lineNum) + strlen(instance.lines[linesIndex]) + 1];
+                            strcpy(line, lineNum);
+                            strcat(line, instance.lines[linesIndex]);
+                            nk_text(ctx, line, strlen(line), NK_TEXT_ALIGN_LEFT);
+                        }
+                        else
+                        {
+                            nk_text(ctx, instance.lines[linesIndex], strlen(instance.lines[linesIndex]), NK_TEXT_ALIGN_LEFT);
+                        }
+                    }
                 }
-                if (autoScroll) {
-                    nk_group_set_scroll(ctx, "textgroup", 0, 99999999);
+                else
+                {
+                    nk_layout_row_dynamic(ctx, 10.0, 1);
+                    for (linesIndex = 0; linesIndex < instance.splitCount; linesIndex++)
+                    {
+                        int charSize;
+                        if (lineNumbers)
+                        {
+                            // Size of long and 3 bytes for :, space, and null term
+                            charSize = (sizeof(long) + 3) + strlen(instance.lines[linesIndex]);
+                        }
+                        else
+                        {
+                            charSize = strlen(instance.lines[linesIndex]) + 1;
+                        }
+                        char line[charSize];
+                        if (lineNumbers)
+                        {
+                            nk_itoa(lineNum, (long)linesIndex);
+                            strcat(lineNum, ": ");
+                            // char line[(strlen(lineNum) + strlen(instance.lines[linesIndex] + 1))];
+                            strcpy(line, lineNum);
+                            strcat(line, instance.lines[linesIndex]);
+                        }
+                        else
+                        {
+                            strcpy(line, instance.lines[linesIndex]);
+                        }
+
+                        int len = strlen(line);
+                        int size = (xw.width - 30) * .166;
+                        if (len > size)
+                        {
+                            // printf("%s\n", instance.lines[linesIndex]);
+                            int loops = len / size;
+                            int rem = len % size;
+                            char *ptr = line;
+                            for (int i = 1; i <= loops; i++)
+                            {
+                                nk_text(ctx, ptr, size, NK_TEXT_ALIGN_LEFT);
+                                ptr = line + (i * size);
+                            }
+                            if (rem > 0)
+                            {
+                                nk_text(ctx, ptr, rem, NK_TEXT_ALIGN_LEFT);
+                            }
+                        }
+                        else
+                        {
+                            nk_text(ctx, line, strlen(line), NK_TEXT_ALIGN_LEFT);
+                        }
+                    }
+                }
+
+                if (autoScroll)
+                {
+                    nk_uint x;
+                    nk_group_get_scroll(ctx, "textgroup", &x, NULL);
+                    nk_group_set_scroll(ctx, "textgroup", x, 99999999);
                 }
                 nk_group_end(ctx);
             }
@@ -246,7 +364,6 @@ int main(void)
         XClearWindow(xw.dpy, xw.win);
         nk_xlib_render(xw.win, nk_rgb(30, 30, 30));
         XFlush(xw.dpy);
-
         /* Timing */
         dt = timestamp() - started;
         if (dt < DTIME)
