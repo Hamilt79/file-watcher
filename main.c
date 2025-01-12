@@ -212,21 +212,11 @@ int main(void)
                 FreeLines(&(instance.lines), &(instance.fileText));
                 instance.splitCount = GetLinesFromFile(instance.filePath, &(instance.lines), &(instance.fileText));
             }
-            /*nk_layout_row_static(ctx, (int)(xw.height * .85), (int)(xw.width * .9), 1);*/
             for (linesIndex = 0; linesIndex < instance.splitCount; linesIndex++)
             {
                 nk_layout_row_dynamic(ctx, 10.0, 1);
                 nk_text(ctx, instance.lines[linesIndex], strlen(instance.lines[linesIndex]), NK_TEXT_ALIGN_LEFT);
             }
-            /*
-            nk_uint x, y, xn, yn;
-            nk_window_get_scroll(ctx, &x, &y);
-            nk_window_set_scroll(ctx, 0.0, 9999999.0);
-            nk_window_get_scroll(ctx, &xn, &yn);
-            nk_window_set_scroll(ctx, x, y);
-            printf("X: %d\n", xn);
-            printf("Y: %d\n", yn);
-            */
         }
         nk_end(ctx);
         if (nk_window_is_hidden(ctx, "Main"))
