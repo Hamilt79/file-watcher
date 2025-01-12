@@ -7,6 +7,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <time.h>
+#include <stdbool.h>
 
 #define NK_INCLUDE_FIXED_TYPES
 #define NK_INCLUDE_STANDARD_IO
@@ -163,7 +164,11 @@ int main(void)
     /* GUI */
     xw.font = nk_xfont_create(xw.dpy, "fixed");
     ctx = nk_xlib_init(xw.font, xw.dpy, xw.screen, xw.win, xw.width, xw.height);
-
+    enum nk_collapse_states optionsState = NK_MAXIMIZED;
+    const float optionsHeightClosed = 25;
+    const float optionsHeightOpen = 90;
+    float optionsHeight = optionsHeightOpen;
+    nk_bool autoScroll = false;
     while (running)
     {
         XGetWindowAttributes(xw.dpy, xw.win, &xw.attr);
@@ -183,39 +188,54 @@ int main(void)
 
         nk_input_end(ctx);
 
-        /* GUI */
-        /*
-           if (nk_begin(ctx, "Demo", nk_rect(50, 50, 200, 200),
-           NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_SCALABLE|
-           NK_WINDOW_CLOSABLE|NK_WINDOW_MINIMIZABLE|NK_WINDOW_TITLE))
-           {
-           */
-        free(NULL);
-        if (nk_begin(ctx, "Main", nk_rect(0, 0, xw.width, xw.height), NK_WINDOW_BORDER | NK_WINDOW_TITLE))
+        if (nk_begin(ctx, "Main", nk_rect(0, 0, xw.width, xw.height), 0))
         {
-            if (instance.filePath == NULL)
+            nk_layout_row_dynamic(ctx, optionsHeight, 1);
+            if (nk_group_begin(ctx, "optionsgroup", NK_WINDOW_NO_SCROLLBAR))
             {
-                nk_layout_row_static(ctx, 30, 80, 1);
-                if (nk_button_label(ctx, "Select File"))
+                if (nk_tree_state_push(ctx, NK_TREE_TAB, "Options", &optionsState))
                 {
-                    static const unsigned SIZE = 1000;
-                    char *path = get_command_out("zenity --file-selection 2>> /dev/null", SIZE);
-                    instance.filePath = path;
-                    CleanFilePath(&instance);
-                    printf("%s\n", instance.filePath);
-                    instance.splitCount = GetLinesFromFile(instance.filePath, &(instance.lines), &(instance.fileText));
-                    printf("%d\n", instance.splitCount);
+                    nk_layout_row_static(ctx, 30, 80, 1);
+                    if (nk_button_label(ctx, "Select File"))
+                    {
+                        FreeLines(&(instance.lines), &(instance.fileText));
+                        free(instance.filePath);
+                        instance.filePath = NULL;
+                        static const unsigned SIZE = 1000;
+                        char *path = get_command_out("zenity --file-selection 2>> /dev/null", SIZE);
+                        instance.filePath = path;
+                        CleanFilePath(&instance);
+                        printf("%s\n", instance.filePath);
+                        instance.splitCount = GetLinesFromFile(instance.filePath, &(instance.lines), &(instance.fileText));
+                        printf("%d\n", instance.splitCount);
+                        optionsState = NK_MINIMIZED;
+                    }
+                    if (nk_checkbox_label(ctx, "Auto-Scroll", &autoScroll)) {
+                    }
+                    optionsHeight = optionsHeightOpen;
+                    nk_tree_pop(ctx);
+                } else {
+                    optionsHeight = optionsHeightClosed;
                 }
+                nk_group_end(ctx);
             }
-            else
+            nk_layout_row_dynamic(ctx, xw.height - optionsHeight - 22.0f, 1);
+            if (nk_group_begin(ctx, "textgroup", 0))
             {
-                FreeLines(&(instance.lines), &(instance.fileText));
-                instance.splitCount = GetLinesFromFile(instance.filePath, &(instance.lines), &(instance.fileText));
-            }
-            for (linesIndex = 0; linesIndex < instance.splitCount; linesIndex++)
-            {
+                if (instance.filePath != NULL)
+                {
+                    FreeLines(&(instance.lines), &(instance.fileText));
+                    instance.splitCount = GetLinesFromFile(instance.filePath, &(instance.lines), &(instance.fileText));
+                }
                 nk_layout_row_dynamic(ctx, 10.0, 1);
-                nk_text(ctx, instance.lines[linesIndex], strlen(instance.lines[linesIndex]), NK_TEXT_ALIGN_LEFT);
+                for (linesIndex = 0; linesIndex < instance.splitCount; linesIndex++)
+                {
+                    nk_text(ctx, instance.lines[linesIndex], strlen(instance.lines[linesIndex]), NK_TEXT_ALIGN_LEFT);
+                }
+                if (autoScroll) {
+                    nk_group_set_scroll(ctx, "textgroup", 0, 99999999);
+                }
+                nk_group_end(ctx);
             }
         }
         nk_end(ctx);
