@@ -593,8 +593,7 @@ nk_xfont_create(Display *dpy, const char *name)
             xfonts++;
         }
     } else {
-        if(!(font->xfont = XLoadQueryFont(dpy, name))
-        && !(font->xfont = XLoadQueryFont(dpy, "fixed"))) {
+        if(!(font->xfont = XLoadQueryFont(dpy, name)) && !(font->xfont = XLoadQueryFont(dpy, "fixed"))) {
             free(font);
             return 0;
         }

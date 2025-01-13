@@ -47,7 +47,7 @@ typedef struct Instance
     unsigned splitCount;
 } Instance;
 
-static Instance NewInstance()
+static Instance new_instance()
 {
     Instance instance;
     instance.fileText = NULL;
@@ -57,7 +57,7 @@ static Instance NewInstance()
     return instance;
 }
 
-static void CleanFilePath(Instance *instance)
+static void clean_file_path(Instance *instance)
 {
     unsigned long size = strlen(instance->filePath);
     instance->filePath = realloc(instance->filePath, sizeof(char) * size + 1);
@@ -98,15 +98,16 @@ static void sleep_for(long t)
 
 static char *get_command_out(const char *command, const unsigned size)
 {
-    char *path = malloc(sizeof(char) * size);
-    memset(path, '\0', size);
+    size_t bytes = sizeof(char) * size;
+    char *path = malloc(bytes);
+    memset(path, '\0', bytes);
     FILE *fp;
     fp = popen(command, "r");
     if (fp == NULL)
     {
         return path;
     }
-    if (fgets(path, size - 1, fp) == NULL)
+    if (fgets(path, bytes, fp) == NULL)
     {
         pclose(fp);
         return path;
@@ -123,7 +124,7 @@ int main(void)
     XWindow xw;
     struct nk_context *ctx;
     XEvent evt;
-    Instance instance = NewInstance();
+    Instance instance = new_instance();
     unsigned long linesIndex = 0;
 
     /* X11 */
@@ -153,10 +154,11 @@ int main(void)
     XGetWindowAttributes(xw.dpy, xw.win, &xw.attr);
     xw.width = (unsigned int)xw.attr.width;
     xw.height = (unsigned int)xw.attr.height;
-
     /* GUI */
     setlocale(LC_ALL, "");
+    //xw.font = nk_xfont_create(xw.dpy, "-*-fixed-medium-r-normal--12-*-*-*");
     xw.font = nk_xfont_create(xw.dpy, "fixed");
+
     ctx = nk_xlib_init(xw.font, xw.dpy, xw.screen, xw.win, xw.width, xw.height);
     enum nk_collapse_states optionsState = NK_MAXIMIZED;
     const float optionsHeightClosed = 25;
@@ -165,26 +167,6 @@ int main(void)
     nk_bool autoScroll = false;
     nk_bool lineNumbers = true;
     nk_bool wrap = false;
-    // struct nk_font_atlas *atlas;
-    // struct nk_font_config config = nk_font_config(14);
-
-    // config.oversample_h = 1;
-    // config.oversample_v = 1;
-    // config.range = nk_font_cyrillic_glyph_ranges();
-
-    // nk_sdl_font_stash_begin(&atlas);
-    //  struct nk_font *ubuntu = nk_font_atlas_add_from_file(atlas, "path_to_your_font", 14, &config)
-    //  nk_sdl_font_stash_end();
-    //  nk_style_set_font(ctx, &ubuntu->handle);
-    //  struct nk_font_atlas *atlas;
-    //  struct nk_font_config cfg = nk_font_config(0);
-    //  struct nk_font *font;
-    //  cfg.range = nk_font_cyrillic_glyph_ranges();
-    //  /* assign Glyph ranges, disable oversampling, enable pixel snapping */
-    //  cfg.oversample_h = cfg.oversample_v = 1;
-    //  cfg.pixel_snap = true;
-    //  font = nk_font_atlas_add_from_file(NULL, "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf", 10.0f, &cfg);
-    //  nk_style_set_font(ctx, &font->handle);
 
     while (running)
     {
@@ -207,27 +189,31 @@ int main(void)
         if (nk_begin(ctx, "Main", nk_rect(0, 0, xw.width, xw.height), 0))
         {
             nk_layout_row_dynamic(ctx, optionsHeight, 1);
+            // Options group. Used so it stays visible at top.
             if (nk_group_begin(ctx, "optionsgroup", NK_WINDOW_NO_SCROLLBAR))
             {
+                // Tree of options.
                 if (nk_tree_state_push(ctx, NK_TREE_TAB, "Options", &optionsState))
                 {
                     nk_layout_row_static(ctx, 30, 80, 1);
                     if (nk_button_label(ctx, "Select File"))
                     {
-                        FreeLines(&(instance.lines), &(instance.fileText));
+                        free_lines(&(instance.lines), &(instance.fileText));
                         free(instance.filePath);
                         instance.filePath = NULL;
                         static const unsigned SIZE = 1000;
+                        // Gets path to file using common application "zenity".
                         char *path = get_command_out("zenity --file-selection 2>> /dev/null", SIZE);
                         instance.filePath = path;
                         if (instance.filePath != NULL)
                         {
-                            CleanFilePath(&instance);
-                            if (DoesFileExist(instance.filePath))
+                            clean_file_path(&instance);
+                            if (does_file_exist(instance.filePath))
                             {
                                 printf("%s\n", instance.filePath);
-                                instance.splitCount = GetLinesFromFile(instance.filePath, &(instance.lines), &(instance.fileText));
+                                instance.splitCount = get_lines_from_file(instance.filePath, &(instance.lines), &(instance.fileText));
                                 printf("%d\n", instance.splitCount);
+                                // Closes tree.
                                 optionsState = NK_MINIMIZED;
                             }
                         }
@@ -245,14 +231,17 @@ int main(void)
                 }
                 nk_group_end(ctx);
             }
+            // Poor way to do this. I haven't bothered to look for how to find the padding yet.
             nk_layout_row_dynamic(ctx, xw.height - optionsHeight - 22.0f, 1);
+            // Group that the text will fill out
             if (nk_group_begin(ctx, "textgroup", 0))
             {
                 if (instance.filePath != NULL)
                 {
-                    FreeLines(&(instance.lines), &(instance.fileText));
-                    instance.splitCount = GetLinesFromFile(instance.filePath, &(instance.lines), &(instance.fileText));
+                    free_lines(&(instance.lines), &(instance.fileText));
+                    instance.splitCount = get_lines_from_file(instance.filePath, &(instance.lines), &(instance.fileText));
                 }
+                // Don't really know how much I should set for this, but I doubt it would ever go over this.
                 char lineNum[sizeof(long) + 3];
                 if (!wrap)
                 {
@@ -264,17 +253,22 @@ int main(void)
                         {
                             nk_itoa(lineNum, (long)linesIndex);
                             strcat(lineNum, ": ");
+                            // .7 magic number is simply a good number to match up the characters with the window width.
                             len = (strlen(lineNum) + strlen(instance.lines[linesIndex])) * 7;
                         }
                         else
                         {
+                            // .7 magic number is simply a good number to match up the characters with the window width.
                             len = strlen(instance.lines[linesIndex]) * 7;
                         }
                         if (len > width)
                         {
+                            // Getting max width.
                             width = len;
                         }
                     }
+                    // Yet another magic number. Equally bad way to do this.
+                    // There is surely a way to get font width and such, but I have not checked.
                     nk_layout_row_static(ctx, 10.0, width * .9, 1);
                     for (linesIndex = 0; linesIndex < instance.splitCount; linesIndex++)
                     {
@@ -313,7 +307,6 @@ int main(void)
                         {
                             nk_itoa(lineNum, (long)linesIndex);
                             strcat(lineNum, ": ");
-                            // char line[(strlen(lineNum) + strlen(instance.lines[linesIndex] + 1))];
                             strcpy(line, lineNum);
                             strcat(line, instance.lines[linesIndex]);
                         }
@@ -326,7 +319,7 @@ int main(void)
                         int size = (xw.width - 30) * .166;
                         if (len > size)
                         {
-                            // printf("%s\n", instance.lines[linesIndex]);
+                            // Wrapping math
                             int loops = len / size;
                             int rem = len % size;
                             char *ptr = line;
@@ -350,7 +343,11 @@ int main(void)
                 if (autoScroll)
                 {
                     nk_uint x;
+                    // Getting the x value, since we don't want to change this.
                     nk_group_get_scroll(ctx, "textgroup", &x, NULL);
+                    // Setting the y to a very high value seems to work.
+                    // Getting the max y then setting it to that would probably work better.
+                    // I could not find a simple way to get such a value.
                     nk_group_set_scroll(ctx, "textgroup", x, 99999999);
                 }
                 nk_group_end(ctx);
@@ -372,7 +369,7 @@ int main(void)
 
 cleanup:
     free(instance.filePath);
-    FreeLines(&(instance.lines), &(instance.fileText));
+    free_lines(&(instance.lines), &(instance.fileText));
     nk_xfont_del(xw.dpy, xw.font);
     nk_xlib_shutdown();
     XUnmapWindow(xw.dpy, xw.win);
