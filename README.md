@@ -1,6 +1,7 @@
 # file-watcher
 
-Small application made with [Nuklear](https://github.com/Immediate-Mode-UI/Nuklear).
+Small application made with [Nuklear](https://github.com/Immediate-Mode-UI/Nuklear).\
+Made for X11, but could likely be easily ported to glfw, sdl, etc.\
 Simple watches a chosen file. Created for myself, to make log viewing a bit easier and as a way to practice using C.
 
 # Features
